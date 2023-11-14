@@ -1,37 +1,6 @@
 import logging as log
 from datetime import datetime
-import socket
-import time
-import threading
-from WebsocketClient import WebsocketClient
-
-
-def ping_pong(cli_sock):
-    while True:
-        cli_sock.send("ping".encode())
-        t = time.time()
-        try:
-            while True:
-                data = cli_sock.recv(1024).decode()
-                if data == "pong":
-                    break
-            print(round((time.time() - t)*1000, 2))
-            time.sleep(1)
-        except:
-            print("Connection closed")
-            break
-
-
-
-
-def client_program():
-    host = 'localhost'  # as both code is running on same pc
-    port = 5001  # socket server port number
-
-    client_socket = socket.socket()  # instantiate
-    client_socket.connect((host, port))  # connect to the server
-    t = threading.Thread(target=ping_pong, args=[client_socket])
-    t.start()
+from GameClient import GameClient
 
 
 if __name__ == "__main__":
@@ -40,6 +9,6 @@ if __name__ == "__main__":
                     format='%(asctime)s::%(levelname)s >>> %(message)s',
                     datefmt='%d-%b-%y %H:%M:%S')
     log.info('Starting main game_client...')
-    client = WebsocketClient()
+    client = GameClient()
     client.start()
 
