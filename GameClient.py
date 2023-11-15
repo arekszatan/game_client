@@ -1,25 +1,80 @@
+import threading
 import time
+import pygame
+import sys
 from WebsocketClientBase import WebsocketClientBase
 
 
 class GameClient(WebsocketClientBase):
     def __init__(self):
         super().__init__()
+        self.server_position = 0
+        self.player_x = 0
+        t = threading.Thread(target=self.main_pygame)
+        t.start()
 
     def main(self):
         # self.test()
         pass
 
-    def test(self):
-        input("Get oponent pres any key")
-        self.send(method="test", data="", callback=self.call_test)
-        print("Waiting for other player")
+    def main_pygame(self):
+        # Inicjalizacja Pygame
+        pygame.init()
+
+        # Ustawienia okna gry
+        width, height = 800, 600
+        screen = pygame.display.set_mode((width, height))
+        pygame.display.set_caption("Prosta Gra w Pygame")
+
+        # Ustawienia gracza
+        player_size = 50
+        self.player_x = width // 2 - player_size // 2
+        player_y = height - 2 * player_size
+        player_speed = 5
+
+        # Ustawienia kolorów
+        white = (255, 255, 255)
+        blue = (0, 0, 255)
+
+        # Główna pętla gry
+        clock = pygame.time.Clock()
+        font = pygame.font.Font(pygame.font.get_default_font(), 36)
+
         while True:
-            # wynik = self.send_to_server(method="test1", data="")
-            # if wynik:
-            #     break
-            time.sleep(1)
-        print("start gry")
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_LEFT] and self.player_x > 0:
+                self.player_x -= player_speed
+
+            if keys[pygame.K_RIGHT] and self.player_x < width - player_size:
+                self.player_x += player_speed
+
+            # Wypełnij tło białym kolorem
+            screen.fill(white)
+
+            # Narysuj gracza (kwadrat)
+            pygame.draw.rect(screen, blue, (self.server_position, player_y, player_size, player_size))
+            text_surface = font.render(str(self.get_ping()), True, "red")
+            screen.blit(text_surface, (20, 20))
+            text_surface = font.render(str(self.is_connected), True, "red")
+            screen.blit(text_surface, (300, 20))
+            text_surface = font.render(str(threading.active_count()), True, "red")
+            screen.blit(text_surface, (300, 60))
+            pygame.display.set_caption(f'{clock.get_fps() :.1f}')
+
+            # Zaktualizuj okno
+            pygame.display.flip()
+            self.test()
+            # Ustaw ilość klatek na sekundę
+            clock.tick(60)
+
+    def test(self):
+        self.send_to_server(method="test", data=self.player_x, callback=self.call_test)
 
     def call_test(self, callback_mess):
-        print("i am call back", callback_mess)
+        print("xd")
+        self.server_position = int(callback_mess)

@@ -15,6 +15,7 @@ class WebsocketClientBase(threading.Thread):
         self.recv_time = []
         self.client_socket = None
         self.is_connected = False
+        self.actual_prefix_list = []
         log.info(f'Websocket client created')
 
     def run(self) -> None:
@@ -58,7 +59,6 @@ class WebsocketClientBase(threading.Thread):
                 self.send_to_server("ping", data="pong", callback=callback_pong)
                 time.sleep(3)
             except Exception as e:
-                print("1")
                 log.exception(e)
                 self.is_connected = False
                 if self.client_socket:
@@ -70,6 +70,7 @@ class WebsocketClientBase(threading.Thread):
 
     def send_to_server(self, method="method", data="data", callback=None):
         prefix = random.randint(100000, 999999)
+        print(prefix)
         data = {
             "prefix": prefix,
             "method": method,
@@ -79,6 +80,7 @@ class WebsocketClientBase(threading.Thread):
         self.client_socket.send(data.encode())
         while True:
             data_recv = self.client_socket.recv(1024).decode()
+            print(data_recv)
             json_object = json.loads(data_recv)
             prefix_mess = json_object['prefix']
             message = json_object['data']
@@ -90,3 +92,6 @@ class WebsocketClientBase(threading.Thread):
     def send(self, method="method", data="data", callback=None):
         t = threading.Thread(target=self.send_to_server, args=[method, data, callback])
         t.start()
+
+    def recv_message_from_server(self):
+        ...
