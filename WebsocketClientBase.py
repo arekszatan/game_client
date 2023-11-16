@@ -16,6 +16,8 @@ class WebsocketClientBase(threading.Thread):
         self.client_socket = None
         self.is_connected = False
         self.actual_prefix_list = []
+        self.actual_callback_list = []
+        self.a = 0
         log.info(f'Websocket client created')
 
     def run(self) -> None:
@@ -28,6 +30,8 @@ class WebsocketClientBase(threading.Thread):
                 log.info(f'Client is connected to {HOST} and {PORT} [SUCCESS]')
                 self.is_connected = True
                 t = threading.Thread(target=self.pong)
+                t.start()
+                t = threading.Thread(target=self.recv_message_from_server)
                 t.start()
                 while self.is_connected:
                     try:
@@ -70,28 +74,58 @@ class WebsocketClientBase(threading.Thread):
 
     def send_to_server(self, method="method", data="data", callback=None):
         prefix = random.randint(100000, 999999)
-        print(prefix)
         data = {
             "prefix": prefix,
             "method": method,
             "data": data
         }
         data = json.dumps(data)
+        self.actual_prefix_list.append(prefix)
+        self.actual_callback_list.append(callback)
         self.client_socket.send(data.encode())
-        while True:
-            data_recv = self.client_socket.recv(1024).decode()
-            print(data_recv)
-            json_object = json.loads(data_recv)
-            prefix_mess = json_object['prefix']
-            message = json_object['data']
-            if prefix == int(prefix_mess):
-                break
-        if callback is not None:
-            callback(message)
+
 
     def send(self, method="method", data="data", callback=None):
         t = threading.Thread(target=self.send_to_server, args=[method, data, callback])
         t.start()
 
     def recv_message_from_server(self):
-        ...
+        index_list = []
+        message_list = []
+        i = 0
+        a = 0
+        while True:
+            while True:
+                data_recv = self.client_socket.recv(1024).decode()
+                #print(data_recv)
+                data_recv_format = data_recv.replace('}{', '},{')
+                data_recv_format = f'[{data_recv_format}]'
+                json_object_list = json.loads(data_recv_format)
+                #print(json_object_list)
+                for json_object in json_object_list:
+                    i += 1
+                    #print(json_object, )
+                    #print(json_object)
+                    #json_object = json.loads(json_object)
+                    prefix_mess = json_object['prefix']
+                    #message = json_object['data']
+                    message_list.append(json_object['data'])
+                    #print(prefix_mess, self.actual_prefix_list)
+                    if int(prefix_mess) in self.actual_prefix_list:
+                        a += 1
+                        index = self.actual_prefix_list.index(prefix_mess)
+                        index_list.append(index)
+                break
+            a = 0
+            for index in index_list:
+                #print(self.actual_callback_list, index - a)
+                #print(self.actual_callback_list, index_list)
+                if self.actual_callback_list[index - a] is not None:
+                    self.actual_callback_list[index - a](message_list[index - a])
+                self.actual_callback_list.pop(index - a)
+                self.actual_prefix_list.pop(index - a)
+                message_list.pop(index - a)
+                a += 1
+
+            index_list = []
+            #print(i, a)

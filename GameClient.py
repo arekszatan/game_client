@@ -28,9 +28,9 @@ class GameClient(WebsocketClientBase):
 
         # Ustawienia gracza
         player_size = 50
-        self.player_x = width // 2 - player_size // 2
+        self.player_x = 80
         player_y = height - 2 * player_size
-        player_speed = 5
+        player_speed = 1
 
         # Ustawienia kolorów
         white = (255, 255, 255)
@@ -49,9 +49,11 @@ class GameClient(WebsocketClientBase):
             keys = pygame.key.get_pressed()
             if keys[pygame.K_LEFT] and self.player_x > 0:
                 self.player_x -= player_speed
+                self.test1()
 
             if keys[pygame.K_RIGHT] and self.player_x < width - player_size:
                 self.player_x += player_speed
+                self.test1()
 
             # Wypełnij tło białym kolorem
             screen.fill(white)
@@ -70,11 +72,16 @@ class GameClient(WebsocketClientBase):
             pygame.display.flip()
             self.test()
             # Ustaw ilość klatek na sekundę
-            clock.tick(60)
+            clock.tick(100)
 
     def test(self):
-        self.send_to_server(method="test", data=self.player_x, callback=self.call_test)
+        print(self.server_position)
+        self.send(method="test", data="", callback=self.call_test)
+
+    def test1(self):
+        self.send(method="test1", data=self.player_x, callback=None)
 
     def call_test(self, callback_mess):
-        print("xd")
+        #print("xd")
+        self.player_x = int(callback_mess)
         self.server_position = int(callback_mess)
