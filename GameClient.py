@@ -1,8 +1,9 @@
+import inspect
 import threading
 import time
 import pygame
 import sys
-from WebsocketClientBase import WebsocketClientBase
+from WebsocketClientBase import WebsocketClientBase, socket_callback
 
 
 class GameClient(WebsocketClientBase):
@@ -10,6 +11,7 @@ class GameClient(WebsocketClientBase):
         super().__init__()
         self.server_position = 0
         self.player_x = 0
+        self.oponent_x = 0
         t = threading.Thread(target=self.main_pygame)
         t.start()
 
@@ -49,17 +51,18 @@ class GameClient(WebsocketClientBase):
             keys = pygame.key.get_pressed()
             if keys[pygame.K_LEFT] and self.player_x > 0:
                 self.player_x -= player_speed
-                self.test1()
+                self.position_after_move()
 
             if keys[pygame.K_RIGHT] and self.player_x < width - player_size:
                 self.player_x += player_speed
-                self.test1()
+                self.position_after_move()
 
             # Wypełnij tło białym kolorem
             screen.fill(white)
 
             # Narysuj gracza (kwadrat)
-            pygame.draw.rect(screen, blue, (self.server_position, player_y, player_size, player_size))
+            pygame.draw.rect(screen, blue, (self.player_x, player_y, player_size, player_size))
+            pygame.draw.rect(screen, blue, (self.oponent_x, 100, player_size, player_size))
             text_surface = font.render(str(self.get_ping()), True, "red")
             screen.blit(text_surface, (20, 20))
             text_surface = font.render(str(self.is_connected), True, "red")
@@ -70,18 +73,14 @@ class GameClient(WebsocketClientBase):
 
             # Zaktualizuj okno
             pygame.display.flip()
-            self.test()
+            #self.test()
+
             # Ustaw ilość klatek na sekundę
-            clock.tick(100)
+            clock.tick(60)
 
-    def test(self):
-        print(self.server_position)
-        self.send(method="test", data="", callback=self.call_test)
+    def position_after_move(self):
+        self.send(method="position_after_move", data=self.player_x, callback=None)
 
-    def test1(self):
-        self.send(method="test1", data=self.player_x, callback=None)
-
-    def call_test(self, callback_mess):
-        #print("xd")
-        self.player_x = int(callback_mess)
-        self.server_position = int(callback_mess)
+    @socket_callback
+    def set_players_position(self, callback_mess):
+        self.oponent_x = int(callback_mess)
