@@ -45,7 +45,7 @@ class WebsocketClientBase(threading.Thread):
                 log.exception(e)
                 time.sleep(RECONNECT_TIME)
 
-    def get_ping(self) -> int:
+    def get_ping(self):
         if len(self.recv_time) == 0:
             return 0
         return round(sum(self.recv_time) / len(self.recv_time), 2)
@@ -122,7 +122,7 @@ class WebsocketClientBase(threading.Thread):
                 index_offset += 1
 
             if callback_for_all is not None:
-                print(all_socket_callback)
+                #print(all_socket_callback)
                 for callback in all_socket_callback:
                     if callback_for_all == callback.__name__:
                         callback(self, message_callback)

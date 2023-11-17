@@ -32,7 +32,7 @@ class GameClient(WebsocketClientBase):
         player_size = 50
         self.player_x = 80
         player_y = height - 2 * player_size
-        player_speed = 1
+        player_speed = 5
 
         # Ustawienia kolorów
         white = (255, 255, 255)
@@ -76,7 +76,7 @@ class GameClient(WebsocketClientBase):
             #self.test()
 
             # Ustaw ilość klatek na sekundę
-            clock.tick(60)
+            clock.tick(30)
 
     def position_after_move(self):
         self.send(method="position_after_move", data=self.player_x, callback=None)
