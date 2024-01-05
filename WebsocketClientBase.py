@@ -1,4 +1,5 @@
 import socket
+import sys
 import threading
 import logging as log
 import time
@@ -20,30 +21,40 @@ class WebsocketClientBase(threading.Thread):
         self.is_connected = False
         self.actual_prefix_list = []
         self.actual_callback_list = []
+        self.running = True
         log.info(f'Websocket client created')
 
     def run(self) -> None:
         log.info(f'Client started')
-        while True:
+        t1 = threading.Thread(target=self.main)
+        t1.start()
+        while self.running:
             try:
+                self.actual_callback_list = []
+                self.actual_prefix_list = []
+                self.client_socket = None
+                self.recv_time = []
                 log.info(f'Client trying connect to {HOST}, {PORT}')
                 self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.client_socket.settimeout(5)
                 self.client_socket.connect((HOST, PORT))
                 log.info(f'Client is connected to {HOST} and {PORT} [SUCCESS]')
                 self.is_connected = True
-                t = threading.Thread(target=self.pong)
-                t.start()
-                t = threading.Thread(target=self.recv_message_from_server)
-                t.start()
-                while self.is_connected:
-                    try:
-                        self.main()
-                    except Exception as e:
-                        log.exception(e)
+                t2 = threading.Thread(target=self.pong)
+                t2.start()
+                t3 = threading.Thread(target=self.recv_message_from_server)
+                t3.start()
+                while True:
+                    if not self.is_connected or not self.running:
                         break
+                if not self.running:
+                    t1.join()
+                    t2.join()
+                    t3.join()
             except Exception as e:
                 log.exception(e)
                 time.sleep(RECONNECT_TIME)
+        sys.exit()
 
     def get_ping(self):
         if len(self.recv_time) == 0:
@@ -51,7 +62,7 @@ class WebsocketClientBase(threading.Thread):
         return round(sum(self.recv_time) / len(self.recv_time), 2)
 
     def pong(self):
-        while True:
+        while self.running:
             try:
                 t = time.time()
 
@@ -89,15 +100,23 @@ class WebsocketClientBase(threading.Thread):
     def send(self, method="method", data="data", callback=None):
         t = threading.Thread(target=self.send_to_server, args=[method, data, callback])
         t.start()
+        if not self.running:
+            t.join()
 
     def recv_message_from_server(self):
-        while True:
+        while self.running and self.is_connected:
             index_list = []
             message_callback = None
             message_list = []
             callback_for_all = None
             while True:
-                data_recv = self.client_socket.recv(1024).decode()
+                try:
+                    if not self.running:
+                        break
+                    data_recv = self.client_socket.recv(1024).decode()
+                except Exception as e:
+                    log.exception(e)
+                    break
                 data_recv_format = data_recv.replace('}{', '},{')
                 data_recv_format = f'[{data_recv_format}]'
                 json_object_list = json.loads(data_recv_format)
@@ -122,9 +141,7 @@ class WebsocketClientBase(threading.Thread):
                 index_offset += 1
 
             if callback_for_all is not None:
-                #print(all_socket_callback)
                 for callback in all_socket_callback:
                     if callback_for_all == callback.__name__:
                         callback(self, message_callback)
                         log.info(f'Callback for all {message_callback}')
-
