@@ -22,6 +22,7 @@ class WebsocketClientBase(threading.Thread):
         self.actual_prefix_list = []
         self.actual_callback_list = []
         self.running = True
+        self.callback_obj = []
         log.info(f'Websocket client created')
 
     def run(self) -> None:
@@ -62,7 +63,7 @@ class WebsocketClientBase(threading.Thread):
         return round(sum(self.recv_time) / len(self.recv_time), 2)
 
     def pong(self):
-        while self.running:
+        while self.running and self.is_connected:
             try:
                 t = time.time()
 
@@ -73,7 +74,7 @@ class WebsocketClientBase(threading.Thread):
                     self.recv_time.append(finish_time)
                     if len(self.recv_time) > 5:
                         self.recv_time.pop(0)
-                self.send_to_server("ping", data="pong", callback=callback_pong)
+                self.send("ping", data="pong", callback=callback_pong)
                 time.sleep(3)
             except Exception as e:
                 log.exception(e)
@@ -93,9 +94,12 @@ class WebsocketClientBase(threading.Thread):
             "data": data
         }
         data = json.dumps(data)
-        self.actual_prefix_list.append(prefix)
-        self.actual_callback_list.append(callback)
-        self.client_socket.send(data.encode())
+        self.callback_obj.append(CallbackCommunication(method, callback, prefix, time.time()))
+        try:
+            self.client_socket.send(data.encode())
+        except Exception as e:
+            log.exception(e)
+            self.is_connected = False
 
     def send(self, method="method", data="data", callback=None):
         t = threading.Thread(target=self.send_to_server, args=[method, data, callback])
@@ -105,43 +109,52 @@ class WebsocketClientBase(threading.Thread):
 
     def recv_message_from_server(self):
         while self.running and self.is_connected:
-            index_list = []
-            message_callback = None
-            message_list = []
-            callback_for_all = None
-            while True:
-                try:
-                    if not self.running:
-                        break
-                    data_recv = self.client_socket.recv(1024).decode()
-                except Exception as e:
-                    log.exception(e)
+            try:
+                if not self.running:
                     break
-                data_recv_format = data_recv.replace('}{', '},{')
-                data_recv_format = f'[{data_recv_format}]'
-                json_object_list = json.loads(data_recv_format)
-                for json_object in json_object_list:
-                    prefix_mess = json_object['prefix']
-                    callback_for_all = json_object['callback_for_all']
-                    if callback_for_all is not None:
-                        message_callback = json_object['data']
-                        continue
-                    message_list.append(json_object['data'])
-                    if int(prefix_mess) in self.actual_prefix_list:
-                        index = self.actual_prefix_list.index(prefix_mess)
-                        index_list.append(index)
+                data_recv = self.client_socket.recv(1024).decode()
+            except Exception as e:
+                log.exception(e)
                 break
-            index_offset = 0
-            for index in index_list:
-                if self.actual_callback_list[index - index_offset] is not None:
-                    self.actual_callback_list[index - index_offset](message_list[index - index_offset])
-                self.actual_callback_list.pop(index - index_offset)
-                self.actual_prefix_list.pop(index - index_offset)
-                message_list.pop(index - index_offset)
-                index_offset += 1
+            data_recv_format = f'[{data_recv.replace("}{", "},{")}]'
+            json_object_list = json.loads(data_recv_format)
+            for json_object in json_object_list:
+                prefix_mess = json_object['prefix']
+                callback_for_all = json_object['callback_for_all']
+                message_callback = json_object['data']
+                if callback_for_all is not None:
+                    for callback in all_socket_callback:
+                        if callback_for_all == callback.__name__:
+                            callback(self, message_callback)
+                            log.info(f'Callback for all {message_callback}')
+                for obj in self.callback_obj:
+                    if obj.get_prefix() == prefix_mess:
+                        obj.proceed_callback(message_callback)
+                        self.callback_obj.remove(obj)
+            # print(self.callback_obj)
+            for obj in self.callback_obj:
+                if obj.get_time_exist() > 5:
+                    self.callback_obj.remove(obj)
 
-            if callback_for_all is not None:
-                for callback in all_socket_callback:
-                    if callback_for_all == callback.__name__:
-                        callback(self, message_callback)
-                        log.info(f'Callback for all {message_callback}')
+
+class CallbackCommunication:
+    def __init__(self, method, callback, prefix, time_created):
+        self.callback = callback
+        self.prefix = prefix
+        self.method = method
+        self.time_created = time_created
+
+    def get_time_exist(self):
+        return time.time() - self.time_created
+
+    def get_prefix(self):
+        return self.prefix
+
+    def get_callback(self):
+        return self.callback
+
+    def proceed_callback(self, param):
+        if self.callback is None:
+            return
+        log.info(f'Callback {self.callback.__name__} for method {self.method} is proceeding')
+        self.callback(param)
