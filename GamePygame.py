@@ -173,10 +173,7 @@ class GamePygame:
 
     def send_bullets_position_callback(self, data):
         self.my_bullets = data
+        print(data)
         self.bullets = []
         for bullet in self.my_bullets:
             self.bullets.append(Bullet(bullet[0], bullet[1]))
-
-
-
-
